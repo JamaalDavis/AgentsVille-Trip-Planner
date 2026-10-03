@@ -1,5 +1,6 @@
 .env
 .venv/
+.runtime-packages/
 __pycache__/
 .ipynb_checkpoints/
 *.mp3

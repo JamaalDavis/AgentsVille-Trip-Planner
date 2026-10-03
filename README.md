@@ -39,9 +39,17 @@ Offline verification:
 python -m unittest -v test_project
 ```
 
-Tests exercise notebook definitions with mocked model responses. They do not
-establish live model quality or endpoint availability. No live API run is
-included. Run the notebook with your key to assess those aspects.
+Tests exercise notebook definitions with mocked model responses, including
+catalog assembly and the requirement to evaluate the exact final candidate.
+The submission notebook also contains saved outputs from live API execution.
+Setup and definition cells print status messages so every code cell has visible
+output. Optional audio narration remains disabled and prints its status.
+
+The revision agent uses GPT-4.1 and can select catalog activity IDs with
+`assemble_travel_plan_tool`. Python copies authoritative catalog fields and
+calculates costs, avoiding errors when a model retypes long event records.
+The assembled candidate must still pass every evaluation before finalization.
+Minor JSON syntax errors are repaired before tool and plan validation.
 
 API reference: [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
 The course's text-based ReAct protocol is retained for rubric compatibility.

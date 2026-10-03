@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pandas as pd
 from pydantic import BaseModel, Field, model_validator, ValidationError
 import project_lib
-from project_lib import Interest, ChatAgent, call_weather_api_mocked
+from project_lib import Interest, ChatAgent, call_weather_api_mocked, call_activities_api_mocked
 
 NOTEBOOK = json.loads(Path('project_starter.ipynb').read_text(encoding='utf-8'))
 ns = dict(globals(), client=object(), MODEL='gpt-4.1-mini',
@@ -115,6 +115,30 @@ class ProjectTests(unittest.TestCase):
         data = fixture().model_dump(mode='json')
         responses = iter([action('run_evals_tool', travel_plan=data), action('final_answer_tool', final_output=data)])
         self.assertEqual(self.run_agent(responses, {'success': True, 'failures': []}), fixture())
+
+    def test_catalog_assembly_and_evaluated_reference(self):
+        original = fixture()
+        selections = {d.date.isoformat(): [r.activity.activity_id for r in d.activity_recommendations]
+                      for d in original.itinerary_days}
+        assembled = ns['TravelPlan'].model_validate(ns['assemble_travel_plan_tool'](selections))
+        ns['eval_itinerary_events_match_actual_events'](ns['vacation_info'], assembled)
+        ns['eval_total_cost_is_accurate'](ns['vacation_info'], assembled)
+        ns['eval_schedule_and_weather_match'](ns['vacation_info'], assembled)
+        agent = ns['ItineraryRevisionAgent'](system_prompt='Offline test')
+        responses = iter([
+            action('run_evals_tool', travel_plan=original.model_dump(mode='json')),
+            action('assemble_travel_plan_tool', activity_ids_by_date=selections),
+            action('run_evals_tool', travel_plan='assembled_plan'),
+            action('final_answer_tool', final_output='evaluated_plan'),
+        ])
+        agent.get_response = lambda **kwargs: next(responses)
+        evaluated = []
+        def run_evals_tool(travel_plan):
+            evaluated.append(travel_plan.model_copy(deep=True))
+            return {'success': len(evaluated) > 1, 'failures': []}
+        agent.tools = [run_evals_tool, ns['assemble_travel_plan_tool'], ns['final_answer_tool']]
+        self.assertEqual(agent.run_react_cycle(original, max_steps=4), assembled)
+        self.assertEqual(evaluated[-1], assembled)
 
     def test_failed_eval_or_changed_final_cannot_exit(self):
         data = fixture().model_dump(mode='json')
